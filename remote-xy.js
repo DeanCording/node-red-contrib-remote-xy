@@ -74,6 +74,7 @@ module.exports = function(RED) {
 
         var server = net.createServer(function (socket) {
             socket.setKeepAlive(true,120000);
+            socket.setEncoding(null);
             if (socketTimeout !== null) { socket.setTimeout(socketTimeout); }
             var id = (1+Math.random()*4294967295).toString(16);
             connectionPool[id] = socket;
@@ -86,8 +87,8 @@ module.exports = function(RED) {
 
 
                 //Process incoming packet
-                 for (var byte of data.values()) {
-                    command.push(byte);
+                 for (var byte = 0; byte < data.length; byte++) {
+                    command.push(data[byte]);
                 }
 
                 // Commands start with marker and end with a valid CRC
