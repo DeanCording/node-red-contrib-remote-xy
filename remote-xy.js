@@ -86,7 +86,8 @@ module.exports = function(RED) {
 
 
                 //Process incoming packet
-                for (var byte of data) {
+                var eData = data.values();
+                for (let byte of eData) {
                     command.push(byte);
                 }
 
