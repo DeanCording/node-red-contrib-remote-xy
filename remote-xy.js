@@ -86,9 +86,8 @@ module.exports = function(RED) {
 
 
                 //Process incoming packet
-                var eData = data.values();
-                for (let d of eData) {
-                    command.push(d);
+                 for (var byte of data.values()) {
+                    command.push(byte);
                 }
 
                 // Commands start with marker and end with a valid CRC
