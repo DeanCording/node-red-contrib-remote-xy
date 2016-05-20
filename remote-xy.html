@@ -1,0 +1,117 @@
+<script type="text/javascript">
+(function() {
+
+    function remote-xy-validate-dashboard() {
+        return RED.nodes.node(this.dashboard) != null;
+
+    RED.nodes.registerType('remote-xy in',{
+        category: 'advanced',
+        color: '#a6bbcf',
+        defaults: {
+            name: {value:""},
+            dashboard: {type: "remote-xy-dashboard", validate: remote-xy-validate-dashboard},
+            index: {value:"0", required: true, validate: RED.validators.number()},
+            topic: {value:"", required: true}
+        },
+        inputs:0,
+        outputs:1,
+        icon: "bridge-dash.png",
+        label: function() {
+            return this.name||"remote-xy";
+        }
+    });
+
+    RED.nodes.registerType('remote-xy out',{
+        category: 'advanced',
+        color: '#a6bbcf',
+        defaults: {
+            name: {value:""},
+            dashboard: {type: "remote-xy-dashboard", validate: remote-xy-validate-dashboard},
+            index: {value:"0", required: true, validate: RED.validators.number()},
+        },
+        inputs:1,
+        outputs:0,
+        icon: "bridge-dash.png",
+        label: function() {
+            return this.name||"remote-xy";
+        }
+    });
+
+    RED.nodes.registerType('remote-xy-dashboard',{
+        category: 'config',
+        defaults: {
+            name: {value:""},
+            port: {value:6377, required:true, validate: RED.validators.number()},
+	    config: {value:"{ 0,0,3,0,5,5,0 }", required:true},
+        },
+        inputs:0,
+        outputs:0,
+        label: function() {
+            return this.name||this.port;
+        }
+    });
+
+})();
+</script>
+
+<script type="text/x-red" data-template-name="remote-xy in">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row" id="remote-xy-dashboard-row">
+        <label for="node-input-dashboard"><i class="fa fa-bookmark"></i> Dashboard</label>
+        <input type="text" id="node-input-dashboard">
+    </div>
+    <div class="form-row">
+        <label for="node-input-index"><i class="fa fa-tag"></i> Index</label>
+        <input type="text" id="node-input-index" placeholder="Index">
+    </div>
+    <div class="form-row">
+        <label for="node-input-topic"><i class="fa fa-tag"></i> Topic</label>
+        <input type="text" id="node-input-topic" placeholder="Topic">
+    </div>
+
+</script>
+
+<script type="text/x-red" data-help-name="remote-xy in">
+</script>
+
+<script type="text/x-red" data-template-name="remote-xy out">
+    <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-input-name" placeholder="Name">
+    </div>
+    <div class="form-row" id="remote-xy-dashboard-row">
+        <label for="node-input-dashboard"><i class="fa fa-bookmark"></i> Dashboard</label>
+        <input type="text" id="node-input-dashboard">
+    </div>
+    <div class="form-row">
+        <label for="node-input-index"><i class="fa fa-tag"></i> Index</label>
+        <input type="text" id="node-input-index" placeholder="Index">
+    </div>
+
+</script>
+
+<script type="text/x-red" data-help-name="remote-xy out">
+</script>
+
+
+<script type="text/x-red" data-template-name="remote-xy-dashboard">
+    <div class="form-row">
+        <label for="node-input-port"><i class="fa fa-plug"></i> Port</label>
+        <input type="text" id="node-input-port" placeholder="Port">
+    </div>
+    <div class="form-row">
+        <label for="node-input-config"><i class="fa fa-dashboard"></i> Config</label>
+        <input type="text" id="node-input-port" placeholder="Port">
+    </div>
+
+    <div class="form-tips">
+        Copy data following <code>unsigned char RemoteXY_CONF[] =</code> in Remote XY editor.
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="remote-xy-dashboard">
+   <p>This configuration node defines a Remote Xy dashboard.</p>
+</script>
