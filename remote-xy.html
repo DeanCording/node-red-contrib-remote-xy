@@ -1,16 +1,11 @@
 <script type="text/javascript">
-(function() {
-
-    function remote-xy-validate-dashboard() {
-        return RED.nodes.node(this.dashboard) != null;
-    }
 
     RED.nodes.registerType('remote-xy in',{
         category: 'advanced',
         color: '#a6bbcf',
         defaults: {
             name: {value:""},
-            dashboard: {type: "remote-xy-dashboard", validate: remote-xy-validate-dashboard},
+            dashboard: {value:"", type: "remote-xy-dashboard", validate:function(v) { return (RED.nodes.node(v) != null);} },
             index: {value:"0", required: true, validate: RED.validators.number()},
             topic: {value:"", required: true}
         },
@@ -27,7 +22,7 @@
         color: '#a6bbcf',
         defaults: {
             name: {value:""},
-            dashboard: {type: "remote-xy-dashboard", validate: remote-xy-validate-dashboard},
+            dashboard: {value:"", type: "remote-xy-dashboard", validate:function(v) { return (RED.nodes.node(v) != null);} },
             index: {value:"0", required: true, validate: RED.validators.number()},
         },
         inputs:1,
@@ -52,7 +47,6 @@
         }
     });
 
-})();
 </script>
 
 <script type="text/x-red" data-template-name="remote-xy in">
@@ -100,12 +94,16 @@
 
 <script type="text/x-red" data-template-name="remote-xy-dashboard">
     <div class="form-row">
+        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+        <input type="text" id="node-config-input-name" placeholder="Name">
+    </div>
+    <div class="form-row">
         <label for="node-input-port"><i class="fa fa-plug"></i> Port</label>
-        <input type="text" id="node-input-port" placeholder="Port">
+        <input type="text" id="node-config-input-port" placeholder="Port">
     </div>
     <div class="form-row">
         <label for="node-config-input-config"><i class="fa fa-dashboard"></i> Config</label>
-        <input type="text" id="node-config-input-port" placeholder="Port">
+        <input type="text" id="node-config-input-config" placeholder="Config">
     </div>
 
     <div class="form-tips">
@@ -114,5 +112,5 @@
 </script>
 
 <script type="text/x-red" data-help-name="remote-xy-dashboard">
-   <p>This configuration node defines a Remote Xy dashboard.</p>
+   <p>This configuration node defines a Remote XY dashboard.</p>
 </script>

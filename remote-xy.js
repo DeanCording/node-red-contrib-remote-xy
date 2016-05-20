@@ -18,14 +18,15 @@
  *
  *
  **/
+"use strict";
 
 module.exports = function(RED) {
 
-    const REMOTEXY_PACKAGE_START_BYTE = 85;
-    const REMOTEXY_CMD_SEND_CONFIG = 0;
-    const REMOTEXY_CMD_SEND_ALL_VARIABLES = 64;
-    const REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES = 128;
-    const REMOTEXY_CMD_SEND_OUTPUT_VARIABLES = 192;
+    var REMOTEXY_PACKAGE_START_BYTE = 85;
+    var REMOTEXY_CMD_SEND_CONFIG = 0;
+    var REMOTEXY_CMD_SEND_ALL_VARIABLES = 64;
+    var REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES = 128;
+    var REMOTEXY_CMD_SEND_OUTPUT_VARIABLES = 192;
 
 
     var reconnectTime = RED.settings.socketReconnectTime||10000;
@@ -38,10 +39,10 @@ module.exports = function(RED) {
 
         var crc = 0xFFFF;
 
-        for (x=0; x<length; x++) {
+        for (var x=0; x<length; x++) {
             crc ^= buffer[x];
 
-            for (i=0; i<8; ++i) {
+            for (var i=0; i<8; ++i) {
                 if ((crc) & 1) crc = ((crc) >> 1) ^ 0xA001;
                 else crc >>= 1;
             }
@@ -55,18 +56,19 @@ module.exports = function(RED) {
         // Create a RED node
         RED.nodes.createNode(this,n);
         var node = this;
+	var count = 0;
 
         // Store local copies of the node configuration (as defined in the .html)
         node.port = n.port * 1;
         node.config = n.config.replace(/\{| |\}/g, "").split(",");  // Strip formatting
-
-
+	
         node.inputs = new Array(node.config.shift()*1);
-        node.inputs.fill(0);
+//        node.inputs.fill(0);
         node.outputs = new Array(node.config.shift()*1);
-        node.outputs.fill(0);
+//        node.outputs.fill(0);
 
-        node.config.shift().shift();  // Drop config length
+        node.config.shift();  // Drop config length
+        node.config.shift();  
 
         node.inputNodes = [];    // collection of nodes that want to receive values
 
@@ -74,56 +76,55 @@ module.exports = function(RED) {
 
         var server = net.createServer(function (socket) {
             socket.setKeepAlive(true,120000);
-            socket.setEncoding(null);
             if (socketTimeout !== null) { socket.setTimeout(socketTimeout); }
             var id = (1+Math.random()*4294967295).toString(16);
             connectionPool[id] = socket;
             count++;
-            node.status({text:RED._("tcpin.status.connections",{count:count})});
+            node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
 
             var command = [];
 
             socket.on('data', function (data) {
-
-
                 //Process incoming packet
                  for (var byte = 0; byte < data.length; byte++) {
-                    command.push(data[byte]);
+                    command.push(data.readUInt8(byte));
                 }
-
+node.log(command);
                 // Commands start with marker and end with a valid CRC
-                if (data.length() > node.inputs.length() + 6) {
-                    data[0] = 0;  // Buffer overflow - remove invalid start marker
+                if (command.length > node.inputs.length + 6) {
+                    command[0] = 0;  // Buffer overflow - remove invalid start marker
                 }
 
                 // Search for start marker
-                while ((data.length > 0) && (data[0] != REMOTEXY_PACKAGE_START_BYTE)) {
-                    data.shift();
+                while ((command.length > 0) && (command[0] != REMOTEXY_PACKAGE_START_BYTE)) {
+                    command.shift();
                 }
 
-                if (data.length < 6) {
+                if (command.length < 6) {
                     return;  // Not enough data
                 }
 
                 // Check CRC if have a valid package
-                if (calculateCRC(data, data.length-2) != (data[data.length-1] + data[data.length]<<8)) {
+                if (calculateCRC(command, command.length-2) != (command[command.length-2] + (command[command.length-1]<<8))) {
+		    node.log("CRC failed");
                     return;  // Not valid
                 }
 
                 // Process command
 
-                data.shift();  // Drop package start byte
-                data.shift();  // Drop package length bytes
-                data.shift();
-                data.pop();    // Drop CRC bytes
-                data.pop();
+                command.shift();  // Drop package start byte
+                command.shift();  // Drop package length bytes
+                command.shift();
+                command.pop();    // Drop CRC bytes
+                command.pop();
 
                 var response = [];
 
-                switch(data[0]) {
+                switch(command[0]) {
                     case REMOTEXY_CMD_SEND_CONFIG:
-
-                        response = Array.from(node.config);
+			for (var x = 0; x < node.config.length; x++) {
+                            response.push(node.config[x]);
+			}
 
                         break;
 
@@ -135,14 +136,20 @@ module.exports = function(RED) {
 
                     case REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES:
 
-                        node.inputs = Array.from(data);
+ //                       node.inputs = Array.from(command);
 
+			for (var x = 0; x < command.length; x++) {
+                            node.inputs[x] = command[x];
+			}
 
                         break;
 
                     case REMOTEXY_CMD_SEND_OUTPUT_VARIABLES:
 
-                        response = Array.from(node.outputs);
+ //                       response = Array.from(node.outputs);
+			for (var x = 0; x < node.outputs.length; x++) {
+                            response.push(node.outputs[x]);
+			}
 
 
                         break;
@@ -152,37 +159,27 @@ module.exports = function(RED) {
                         return;
                 }
 
-
-
-                        msg = {topic:node.topic, payload:data};
-                        msg._session = {type:"tcp",id:id};
-                        node.send(msg);
-
-
-
-
                 // Send response
-                response.unshift(data[0]);
+                response.unshift(command[0]);
 
                 var response_length = response.length+5;
-                response.unshift(response_length>>8, response_length&0xFF, REMOTEXY_PACKAGE_START_BYTE);
-
+                response.unshift(REMOTEXY_PACKAGE_START_BYTE, response_length&0xFF,response_length>>8);
 
                 var crc = calculateCRC(response, response.length);
                 response.push(crc&0xFF, crc>>8);
-
-                this.write(response);
+node.log(response);
+                this.write(new Buffer(response));
                 command = []; // Clear command buffer
 
             });
             socket.on('timeout', function() {
-                node.log(RED._("tcpin.errors.timeout",{port:node.port}));
+                node.log(RED._("node-red:tcpin.errors.timeout",{port:node.port}));
                 socket.end();
             });
             socket.on('close', function() {
                 delete connectionPool[id];
                 count--;
-                node.status({text:RED._("tcpin.status.connections",{count:count})});
+                node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
             });
             socket.on('error',function(err) {
                 node.log(err);
@@ -190,15 +187,15 @@ module.exports = function(RED) {
         });
         server.on('error', function(err) {
             if (err) {
-                node.error(RED._("tcpin.errors.cannot-listen",{port:node.port,error:err.toString()}));
+                node.error(RED._("node-red:tcpin.errors.cannot-listen",{port:node.port,error:err.toString()}));
             }
         });
 
         server.listen(node.port, function(err) {
             if (err) {
-                node.error(RED._("tcpin.errors.cannot-listen",{port:node.port,error:err.toString()}));
+                node.error(RED._("node-red:tcpin.errors.cannot-listen",{port:node.port,error:err.toString()}));
             } else {
-                node.log(RED._("tcpin.status.listening-port",{port:node.port}));
+                node.log(RED._("node-red:tcpin.status.listening-port",{port:node.port}));
                 node.on('close', function() {
                     for (var c in connectionPool) {
                         if (connectionPool.hasOwnProperty(c)) {
@@ -208,7 +205,7 @@ module.exports = function(RED) {
                     }
                     node.closing = true;
                     server.close();
-                    node.log(RED._("tcpin.status.stopped-listening",{port:node.port}));
+                    node.log(RED._("node-red:tcpin.status.stopped-listening",{port:node.port}));
                 });
             }
         });
@@ -251,18 +248,18 @@ module.exports = function(RED) {
         this.index = n.index;
         this.topic = n.topic;
         var node = this;
-        this.dashboardConfig = RED.nodes.getNode(this.dashboard);
-        if (this.dashboardConfig) {
-            this.dashboardConfig.subscribe(this.index, function(value) {
+        node.dashboardConfig = RED.nodes.getNode(this.dashboard);
+        if (node.dashboardConfig) {
+            node.dashboardConfig.subscribe(this.index, function(value) {
                     var msg = {topic:this.topic, payload:value};
                     node.send(msg);
                 }, this.id);
 
-            this.serverConfig.on('opened', function(n) { node.status({fill:"green",shape:"dot",text:"connected "+n}); });
-            this.serverConfig.on('erro', function() { node.status({fill:"red",shape:"ring",text:"error"}); });
-            this.serverConfig.on('closed', function() { node.status({fill:"yellow",shape:"ring",text:"disconnected"}); });
+            node.dashboardConfig.on('opened', function(n) { node.status({fill:"green",shape:"dot",text:"connected "+n}); });
+            node.dashboardConfig.on('erro', function() { node.status({fill:"red",shape:"ring",text:"error"}); });
+            node.dashboardConfig.on('closed', function() { node.status({fill:"yellow",shape:"ring",text:"disconnected"}); });
         } else {
-            this.error("Dashboard config missing");
+            node.error("Dashboard config missing");
         }
 
         this.on('close', function() {
@@ -276,20 +273,20 @@ module.exports = function(RED) {
     function RemoteXYOutNode(n) {
         RED.nodes.createNode(this,n);
         var node = this;
-        this.index = n.index;
-        this.dashboard = n.dashboard;
-        this.dashboardConfig = RED.nodes.getNode(this.dashboard);
-        if (!this.dashboardConfig) {
-            this.error("Dashboard config missing");
+        node.index = n.index;
+        node.dashboard = n.dashboard;
+        node.dashboardConfig = RED.nodes.getNode(node.dashboard);
+        if (!node.dashboardConfig) {
+            node.error("Dashboard config missing");
         }
         else {
-            this.serverConfig.on('opened', function(n) { node.status({fill:"green",shape:"dot",text:"connected "+n}); });
-            this.serverConfig.on('erro', function() { node.status({fill:"red",shape:"ring",text:"error"}); });
-            this.serverConfig.on('closed', function() { node.status({fill:"yellow",shape:"ring",text:"disconnected"}); });
+            node.dashboardConfig.on('opened', function(n) { node.status({fill:"green",shape:"dot",text:"connected "+n}); });
+            node.dashboardConfig.on('erro', function() { node.status({fill:"red",shape:"ring",text:"error"}); });
+            node.dashboardConfig.on('closed', function() { node.status({fill:"yellow",shape:"ring",text:"disconnected"}); });
         }
-        this.on("input", function(msg) {
-            dashboardConfig.update(this.index, msg.payload);
+        node.on("input", function(msg) {
+            node.dashboardConfig.update(this.index, msg.payload);
         });
     }
-    RED.nodes.registerType("remotexy out",RemoteXYOutNode);
+    RED.nodes.registerType("remote-xy out",RemoteXYOutNode);
 }
