@@ -29,7 +29,7 @@ module.exports = function(RED) {
     const REMOTEXY_CMD_SEND_OUTPUT_VARIABLES = 192;
 
     const REMOTEXY_CONFIG_START_MARKER = 'RemoteXY_CONF[]';
-    const REMOTEXY_CONFIG_END_MARKER = '};";
+    const REMOTEXY_CONFIG_END_MARKER = '}';
     const REMOTEXY_INPUTS_MARKER = '/* input variable */';
     const REMOTEXY_OUTPUTS_MARKER = '/* output variable */';
     const REMOTEXY_VARIABLES_END_MARKER = '/* other variable */';
@@ -64,7 +64,7 @@ module.exports = function(RED) {
         // Create a RED node
         RED.nodes.createNode(this,n);
         var node = this;
-	var count = 0;
+        var count = 0;
 
         // Store local copies of the node configuration (as defined in the .html)
         node.port = n.port * 1;
@@ -107,7 +107,7 @@ module.exports = function(RED) {
         var outputStart = n.config.indexOf(REMOTEXY_OUTPUTS_MARKER);
         var variablesEnd = n.config.indexOf(REMOTEXY_VARIABLES_END_MARKER);
 
-        if ((inputStart == -1) || (outputStart == -1) || (variablesEnd == -1))
+        if ((inputStart == -1) || (outputStart == -1) || (variablesEnd == -1)) {
             node.error("Invalid config: Variables not found.");
             return;
         }
@@ -137,14 +137,14 @@ module.exports = function(RED) {
             var output = outputConfig[x].match(/(?:unsigned|signed)? char (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
 
             if (output != null) {
-                outputVariables.push({name:output[1], min:output[3]*1, max:output[4]*1, length:output[2]*1  , value:0});
+                outputVariables.push({name:output[1], min:output[3]*1, max:output[4]*1, length:output[2]*1, value:0});
             }
         }
 
 
         // Create TCP Server
 
-        var server = net.createServer(function (socket) {
+        var server = net.createServer(function(socket) {
             socket.setKeepAlive(true,120000);
             if (socketTimeout !== null) { socket.setTimeout(socketTimeout); }
             var id = (1+Math.random()*4294967295).toString(16);
@@ -154,7 +154,7 @@ module.exports = function(RED) {
 
             var command = [];
 
-            socket.on('data', function (data) {
+            socket.on('data', function(data) {
                 //Process incoming packet
                  for (var byte = 0; byte < data.length; byte++) {
                     command.push(data.readUInt8(byte));
@@ -176,7 +176,7 @@ module.exports = function(RED) {
 
                 // Check CRC if have a valid package
                 if (calculateCRC(command, command.length-2) != (command[command.length-2] + (command[command.length-1]<<8))) {
-		    node.log("CRC failed");
+                    node.log("CRC failed");
                     return;  // Not valid
                 }
 
@@ -190,7 +190,7 @@ module.exports = function(RED) {
 
                 switch(command[0]) {
                     case REMOTEXY_CMD_SEND_CONFIG:
-			this.write(node.configBuffer);
+                        this.write(node.configBuffer);
 
                         break;
 
@@ -208,7 +208,7 @@ module.exports = function(RED) {
 
                     case REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES:
 
-			for (var x = 0; x < command.length; x++) {
+                        for (var x = 0; x < command.length; x++) {
 
                             if (node.inputVariables[x].value != command[x]){
                                 node.inputVariables[x].value = command[x];
@@ -217,8 +217,8 @@ module.exports = function(RED) {
                                 for (var ref in node.inputVariables[x].listeners) {
                                     node.inputVariables[x].listeners[ref](command[x]);
                                 }
-
-			}
+                            }
+                        }
 
                         this.write(REMOTEXY_INPUT_VARIABLES_RESPONSE);
 
@@ -294,13 +294,13 @@ module.exports = function(RED) {
             } else {
                 node.error("Could not store '" + value + "' to " + node.outputVariables[index].name);
             }
-        }
+        };
 
         node.subscribe = function(index, callback, ref) {
 
             node.inputVariables[index].listeners[ref] = callback;
 
-        }
+        };
 
         node.unsubscribe = function(index, ref) {
             ref = ref||0;
@@ -310,7 +310,7 @@ module.exports = function(RED) {
                     delete sub[ref];
                 }
             }
-        }
+        };
 
 
     }

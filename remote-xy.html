@@ -73,7 +73,7 @@
     function updateInputs(nodeId, selectId) {
         var selectElement = document.getElementById(selectId);
 
-        while (selectElement.firstChild) { selectElement.removeChild(selectElement.firstChild);
+        while (selectElement.firstChild) { selectElement.removeChild(selectElement.firstChild); }
 
         var optionElement = document.createElement("option");
         optionElement.value = "0";
