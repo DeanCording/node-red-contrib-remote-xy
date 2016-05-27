@@ -7,7 +7,6 @@
             name: {value:""},
             dashboard: {value:"", type: "remote-xy-dashboard", validate:function(v) { return (RED.nodes.node(v) != null);} },
             index: {value:"0", required: true, validate: RED.validators.number()},
-            topic: {value:"", required: true}
         },
         inputs:0,
         outputs:1,
@@ -38,14 +37,51 @@
         defaults: {
             name: {value:""},
             port: {value:6377, required:true, validate: RED.validators.number()},
-	    config: {value:"{ 0,0,3,0,5,5,0 }", required:true},
+	    config: {value:"", required:true},
         },
         inputs:0,
         outputs:0,
         label: function() {
-            return this.name||this.port;
+            return this.name||("Remote XY " + this.port);
+        }
+        oneditprepare: function() {
+            var that = this;
+            this.editor = RED.editor.createEditor({
+                id: 'node-config-input-config-editor',
+                mode: 'ace/mode/c_cpp',
+                value: $("#node-config-input-config").val()
+            });
+            this.editor.focus();
+        },
+        oneditsave: function() {
+            $("#node-config-input-config").val(this.editor.getValue());
+            delete this.editor;
+        },
+        oneditresize: function(size) {
+            var rows = $("#dialog-form>div:not(.node-text-editor-row)");
+            var height = $("#dialog-form").height();
+            for (var i=0;i<rows.size();i++) {
+                height -= $(rows[i]).outerHeight(true);
+            }
+            var editorRow = $("#dialog-form>div.node-text-editor-row");
+            height -= (parseInt(editorRow.css("marginTop"))+parseInt(editorRow.css("marginBottom")));
+            $(".node-text-editor").css("height",height+"px");
+            this.editor.resize();
         }
     });
+
+    function updateInputs(nodeId, selectId) {
+        var selectElement = document.getElementById(selectId);
+
+        while (selectElement.firstChild) { selectElement.removeChild(selectElement.firstChild);
+
+        var optionElement = document.createElement("option");
+        optionElement.value = "0";
+        optionElement.text = "slider_1";
+
+        selectElement.add(optionElement);
+
+    };
 
 </script>
 
@@ -56,16 +92,13 @@
     </div>
     <div class="form-row" id="remote-xy-dashboard-row">
         <label for="node-input-dashboard"><i class="fa fa-bookmark"></i> Dashboard</label>
-        <input type="text" id="node-input-dashboard">
+        <input type="text" id="node-input-dashboard" onchange="updateOutputs(this.value, "node-input-index")">
     </div>
     <div class="form-row">
-        <label for="node-input-index"><i class="fa fa-tag"></i> Index</label>
-        <input type="text" id="node-input-index" placeholder="Index">
-    </div>
-    <div class="form-row">
-        <label for="node-input-topic"><i class="fa fa-tasks"></i> Topic</label>
-        <input type="text" id="node-input-topic" placeholder="Topic">
-    </div>
+        <label for="node-input-index"><i class="fa fa-tag"></i> Variable</label>
+        <select id="node-input-index" placeholder="Variable">
+        </select>
+    </dev>
 
 </script>
 
@@ -79,12 +112,13 @@
     </div>
     <div class="form-row" id="remote-xy-dashboard-row">
         <label for="node-input-dashboard"><i class="fa fa-bookmark"></i> Dashboard</label>
-        <input type="text" id="node-input-dashboard">
+        <input type="text" id="node-input-dashboard" onchange="updateSelect(this.value)">
     </div>
     <div class="form-row">
         <label for="node-input-index"><i class="fa fa-tag"></i> Index</label>
         <input type="text" id="node-input-index" placeholder="Index">
     </div>
+
 
 </script>
 
@@ -101,13 +135,15 @@
         <label for="node-input-port"><i class="fa fa-plug"></i> Port</label>
         <input type="text" id="node-config-input-port" placeholder="Port">
     </div>
-    <div class="form-row">
-        <label for="node-config-input-config"><i class="fa fa-dashboard"></i> Config</label>
-        <input type="text" id="node-config-input-config" placeholder="Config">
+    <div class="form-row" style="margin-bottom: 0px;">
+        <label for="node-config-input-config" style="width: 100% !important;"><i class="fa fa-code"></i> project.ino</label>
+        <input type="hidden" id="node-config-input-config" autofocus="autofocus">
     </div>
-
+    <div class="form-row node-text-editor-row">
+        <div style="height: 250px;" class="node-text-editor" id="node-config-input-config-editor"></div>
+    </div>
     <div class="form-tips">
-        Copy data following <code>unsigned char RemoteXY_CONF[] =</code> in Remote XY editor.
+        Copy all <code>project.ino</code> code from Remote XY editor.
     </div>
 </script>
 

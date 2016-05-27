@@ -22,11 +22,19 @@
 
 module.exports = function(RED) {
 
-    var REMOTEXY_PACKAGE_START_BYTE = 85;
-    var REMOTEXY_CMD_SEND_CONFIG = 0;
-    var REMOTEXY_CMD_SEND_ALL_VARIABLES = 64;
-    var REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES = 128;
-    var REMOTEXY_CMD_SEND_OUTPUT_VARIABLES = 192;
+    const REMOTEXY_PACKAGE_START_BYTE = 85;
+    const REMOTEXY_CMD_SEND_CONFIG = 0;
+    const REMOTEXY_CMD_SEND_ALL_VARIABLES = 64;
+    const REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES = 128;
+    const REMOTEXY_CMD_SEND_OUTPUT_VARIABLES = 192;
+
+    const REMOTEXY_CONFIG_START_MARKER = 'RemoteXY_CONF[]';
+    const REMOTEXY_CONFIG_END_MARKER = '};";
+    const REMOTEXY_INPUTS_MARKER = '/* input variable */';
+    const REMOTEXY_OUTPUTS_MARKER = '/* output variable */';
+    const REMOTEXY_VARIABLES_END_MARKER = '/* other variable */';
+
+    var REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE = Buffer.from([REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES, 4, 0, 0]);
 
 
     var reconnectTime = RED.settings.socketReconnectTime||10000;
@@ -35,11 +43,11 @@ module.exports = function(RED) {
 
     var connectionPool = {};
 
-    function calculateCRC(buffer, length) {
+    function calculateCRC(buffer) {
 
         var crc = 0xFFFF;
 
-        for (var x=0; x<length; x++) {
+        for (var x=0; x<length-2; x++) {
             crc ^= buffer[x];
 
             for (var i=0; i<8; ++i) {
@@ -60,17 +68,79 @@ module.exports = function(RED) {
 
         // Store local copies of the node configuration (as defined in the .html)
         node.port = n.port * 1;
-        node.config = n.config.replace(/\{| |\}/g, "").split(",");  // Strip formatting
-	
-        node.inputs = new Array(node.config.shift()*1);
-//        node.inputs.fill(0);
-        node.outputs = new Array(node.config.shift()*1);
-//        node.outputs.fill(0);
 
-        node.config.shift();  // Drop config length
-        node.config.shift();  
+        var configStart = n.config.indexOf(REMOTEXY_CONFIG_START_MARKER);
 
-        node.inputNodes = [];    // collection of nodes that want to receive values
+        if (configStart == -1) {
+            node.error("Invalid config: RemoteXY_CONF[] not found.");
+            return;
+        }
+
+        var configEnd = node.config.indexOf(REMOTE_CONFIG_END_MARKER, configStart);
+
+        if (configEnd == -1) {
+            node.error("Invalid config: Config end not found.");
+            return;
+        }
+
+        var configArray = node.config.slice(configStart + REMOTEXY_CONFIG_MARKER.length, configEnd).replace(/\{| |\}\=\;\n/g, "").split(",");  // Slice out configuration, strip formatting and split into values.
+
+        // Pre-build config response message
+        node.configBuffer = Buffer.alloc(configArray.length + 6);
+
+        node.configBuffer.writeInt8(REMOTEXY_CMD_SEND_CONFIG,0);
+        node.configBuffer.writeInt16LE(node.configBuffer.length,1);
+
+        for (var x =0; x < configArray.length; x++) {
+            node.configBuffer.writeInt8(configArray[x], x+2);
+        }
+
+        node.configBuffer.writeInt16LE(calculateCRC(node.configBuffer), node.configBuffer.length - 2);
+
+        // Calc CRC for receive input variables response buffer
+        REMOTEXY_INPUT_VARIABLES_RESPONSE.writeInt16LE(calculateCRC(REMOTEXY_INPUT_VARIABLES_RESPONSE),
+                                                       REMOTEXY_INPUT_VARIABLES_RESPONSE.length - 2);
+
+
+        // Create input and output variables store
+        var inputStart = n.config.indexOf(REMOTEXY_INPUTS_MARKER);
+        var outputStart = n.config.indexOf(REMOTEXY_OUTPUTS_MARKER);
+        var variablesEnd = n.config.indexOf(REMOTEXY_VARIABLES_END_MARKER);
+
+        if ((inputStart == -1) || (outputStart == -1) || (variablesEnd == -1))
+            node.error("Invalid config: Variables not found.");
+            return;
+        }
+
+        // Extract input variables
+        node.inputVariables = [];
+        node.inputVariablesBuffer = Buffer.alloc(node.configBuffer.readInt8(0));
+
+        var inputConfig = n.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length, outputStart).split("\n");
+
+        for (var x = 0; x < inputConfig.length; x++) {
+            var input = inputConfig[x].match(/(?:unsigned|signed) char (\w+);/);
+
+            if (input != null) {
+                inputVariables.push({name:input[1], listeners:{}});
+
+            }
+        }
+
+        // Extract output variables
+        node.outputVariables = [];
+        node.outputVariablesBuffer = Buffer.alloc(node.configBuffer.readInt8(1));
+
+        var outputConfig = n.config.slice(outputStart + REMOTEXY_OUTPUTS_MARKER.length, variablesEnd).split("\n");
+
+        for (var x = 0; x < outputConfig.length; x++) {
+            var output = outputConfig[x].match(/(?:unsigned|signed)? char (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
+
+            if (output != null) {
+                outputVariables.push({name:output[1], min:output[3]*1, max:output[4]*1, length:output[2]*1  , value:0});
+            }
+        }
+
 
         // Create TCP Server
 
@@ -89,7 +159,7 @@ module.exports = function(RED) {
                  for (var byte = 0; byte < data.length; byte++) {
                     command.push(data.readUInt8(byte));
                 }
-node.log(command);
+
                 // Commands start with marker and end with a valid CRC
                 if (command.length > node.inputs.length + 6) {
                     command[0] = 0;  // Buffer overflow - remove invalid start marker
@@ -118,39 +188,50 @@ node.log(command);
                 command.pop();    // Drop CRC bytes
                 command.pop();
 
-                var response = [];
-
                 switch(command[0]) {
                     case REMOTEXY_CMD_SEND_CONFIG:
-			for (var x = 0; x < node.config.length; x++) {
-                            response.push(node.config[x]);
-			}
+			this.write(node.configBuffer);
 
                         break;
 
                     case REMOTEXY_CMD_SEND_ALL_VARIABLES:
 
-                        response = node.inputs.concat(node.outputs);
+                        var response = Buffer.concat([Buffer.from([REMOTEXY_CMD_SEND_ALL_VARIABLES, 0, 0]),
+                                                     node.inputVariablesBuffer, node.outputVariables.Buffer,
+                                                     Buffer.alloc(2));
+
+                        response.writeUInt16(response.length, 1);
+                        response.writeInt16LE(calculateCRC(response), response.length - 2);
+
 
                         break;
 
                     case REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES:
 
- //                       node.inputs = Array.from(command);
-
 			for (var x = 0; x < command.length; x++) {
-                            node.inputs[x] = command[x];
+
+                            if (node.inputVariables[x].value != command[x]){
+                                node.inputVariables[x].value = command[x];
+
+                                // Call listener callbacks
+                                for (var ref in node.inputVariables[x].listeners) {
+                                    node.inputVariables[x].listeners[ref](command[x]);
+                                }
+
 			}
+
+                        this.write(REMOTEXY_INPUT_VARIABLES_RESPONSE);
 
                         break;
 
                     case REMOTEXY_CMD_SEND_OUTPUT_VARIABLES:
 
- //                       response = Array.from(node.outputs);
-			for (var x = 0; x < node.outputs.length; x++) {
-                            response.push(node.outputs[x]);
-			}
+                        var response = Buffer.concat([Buffer.from([REMOTEXY_CMD_SEND_OUTPUT_VARIABLES, 0, 0]),
+                                                     node.outputVariables.Buffer,
+                                                     Buffer.alloc(2));
 
+                        response.writeUInt16(response.length, 1);
+                        response.writeInt16LE(calculateCRC(response), response.length - 2);
 
                         break;
 
@@ -159,17 +240,6 @@ node.log(command);
                         return;
                 }
 
-                // Send response
-                response.unshift(command[0]);
-
-                var response_length = response.length+5;
-                response.unshift(REMOTEXY_PACKAGE_START_BYTE, response_length&0xFF,response_length>>8);
-
-                var crc = calculateCRC(response, response.length);
-                response.push(crc&0xFF, crc>>8);
-node.log(response);
-                this.write(new Buffer(response));
-                command = []; // Clear command buffer
 
             });
             socket.on('timeout', function() {
@@ -213,20 +283,28 @@ node.log(response);
         // Node functions
 
         node.update = function(index, value) {
-            node.outputs[index] = value;
 
+            if ((typeof value === "number") && (node.outputVariables[index].length === undefined)) {
+                node.outputVariablesBuffer.writeInt8(value,index);
+
+            } else if (node.outputVariables[index].length != undefined) {
+                var vlaueString = value.toString(),
+                node.outputVariablesBuffer.write(valueString, Math.min(valueString.length,node.outputVariables[index].length));
+
+            } else {
+                node.error("Could not store '" + value + "' to " + node.outputVariables[index].name);
+            }
         }
 
         node.subscribe = function(index, callback, ref) {
-            node.inputNodes[index] = node.inputNodes[index]||{};
 
-            node.inputNodes[index][ref] = callback;
+            node.inputVariables[index].listeners[ref] = callback;
 
         }
 
         node.unsubscribe = function(index, ref) {
             ref = ref||0;
-            var sub = node.inputNodes[index];
+            var sub = node.inputVariables[index].listeners;
             if (sub) {
                 if (sub[ref]) {
                     delete sub[ref];
