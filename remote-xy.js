@@ -29,7 +29,7 @@ module.exports = function(RED) {
     const REMOTEXY_CMD_SEND_OUTPUT_VARIABLES = 192;
 
     const REMOTEXY_CONFIG_START_MARKER = 'RemoteXY_CONF[]';
-    const REMOTEXY_CONFIG_END_MARKER = '}';
+    const REMOTEXY_CONFIG_END_MARKER = '};';
     const REMOTEXY_INPUTS_MARKER = '/* input variable */';
     const REMOTEXY_OUTPUTS_MARKER = '/* output variable */';
     const REMOTEXY_VARIABLES_END_MARKER = '/* other variable */';
@@ -51,7 +51,7 @@ module.exports = function(RED) {
             crc ^= buffer[x];
 
             for (var i=0; i<8; ++i) {
-                if ((crc) & 1) crc = ((crc) >> 1) ^ 0xA001;
+                if (crc & 1) crc = (crc >> 1) ^ 0xA001;
                 else crc >>= 1;
             }
         }
@@ -198,7 +198,7 @@ module.exports = function(RED) {
 
                         var response = Buffer.concat([Buffer.from([REMOTEXY_CMD_SEND_ALL_VARIABLES, 0, 0]),
                                                      node.inputVariablesBuffer, node.outputVariables.Buffer,
-                                                     Buffer.alloc(2));
+                                                     Buffer.alloc(2)]);
 
                         response.writeUInt16(response.length, 1);
                         response.writeInt16LE(calculateCRC(response), response.length - 2);
@@ -228,7 +228,7 @@ module.exports = function(RED) {
 
                         var response = Buffer.concat([Buffer.from([REMOTEXY_CMD_SEND_OUTPUT_VARIABLES, 0, 0]),
                                                      node.outputVariables.Buffer,
-                                                     Buffer.alloc(2));
+                                                     Buffer.alloc(2)]);
 
                         response.writeUInt16(response.length, 1);
                         response.writeInt16LE(calculateCRC(response), response.length - 2);
@@ -288,7 +288,7 @@ module.exports = function(RED) {
                 node.outputVariablesBuffer.writeInt8(value,index);
 
             } else if (node.outputVariables[index].length != undefined) {
-                var vlaueString = value.toString(),
+                var valueString = value.toString();
                 node.outputVariablesBuffer.write(valueString, Math.min(valueString.length,node.outputVariables[index].length));
 
             } else {
