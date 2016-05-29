@@ -36,7 +36,6 @@ module.exports = function(RED) {
 
     var REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE = Buffer.from([REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES, 4, 0, 0]);
 
-
     var reconnectTime = RED.settings.socketReconnectTime||10000;
     var socketTimeout = RED.settings.socketTimeout||null;
     var net = require('net');
@@ -197,8 +196,8 @@ module.exports = function(RED) {
                     case REMOTEXY_CMD_SEND_ALL_VARIABLES:
 
                         var response = Buffer.concat([Buffer.from([REMOTEXY_CMD_SEND_ALL_VARIABLES, 0, 0]),
-                                                     node.inputVariablesBuffer, node.outputVariables.Buffer,
-                                                     Buffer.alloc(2));
+                                                     node.inputVariablesBuffer, node.outputVariablesBuffer,
+                                                     Buffer.alloc(2)]);
 
                         response.writeUInt16(response.length, 1);
                         response.writeInt16LE(calculateCRC(response), response.length - 2);
@@ -227,8 +226,8 @@ module.exports = function(RED) {
                     case REMOTEXY_CMD_SEND_OUTPUT_VARIABLES:
 
                         var response = Buffer.concat([Buffer.from([REMOTEXY_CMD_SEND_OUTPUT_VARIABLES, 0, 0]),
-                                                     node.outputVariables.Buffer,
-                                                     Buffer.alloc(2));
+                                                     node.outputVariablesBuffer,
+                                                     Buffer.alloc(2)]);
 
                         response.writeUInt16(response.length, 1);
                         response.writeInt16LE(calculateCRC(response), response.length - 2);
@@ -288,7 +287,7 @@ module.exports = function(RED) {
                 node.outputVariablesBuffer.writeInt8(value,index);
 
             } else if (node.outputVariables[index].length != undefined) {
-                var vlaueString = value.toString(),
+                var valueString = value.toString();
                 node.outputVariablesBuffer.write(valueString, Math.min(valueString.length,node.outputVariables[index].length));
 
             } else {
