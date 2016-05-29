@@ -36,7 +36,6 @@ module.exports = function(RED) {
 
     var REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE = Buffer.from([REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES, 4, 0, 0]);
 
-
     var reconnectTime = RED.settings.socketReconnectTime||10000;
     var socketTimeout = RED.settings.socketTimeout||null;
     var net = require('net');
@@ -197,7 +196,8 @@ module.exports = function(RED) {
                     case REMOTEXY_CMD_SEND_ALL_VARIABLES:
 
                         var response = Buffer.concat([Buffer.from([REMOTEXY_CMD_SEND_ALL_VARIABLES, 0, 0]),
-                                                     node.inputVariablesBuffer, node.outputVariables.Buffer,
+
+                                                     node.inputVariablesBuffer, node.outputVariablesBuffer,
                                                      Buffer.alloc(2)]);
 
                         response.writeUInt16(response.length, 1);
@@ -227,7 +227,8 @@ module.exports = function(RED) {
                     case REMOTEXY_CMD_SEND_OUTPUT_VARIABLES:
 
                         var response = Buffer.concat([Buffer.from([REMOTEXY_CMD_SEND_OUTPUT_VARIABLES, 0, 0]),
-                                                     node.outputVariables.Buffer,
+
+                                                     node.outputVariablesBuffer,
                                                      Buffer.alloc(2)]);
 
                         response.writeUInt16(response.length, 1);
@@ -324,12 +325,15 @@ module.exports = function(RED) {
         RED.nodes.createNode(this,n);
         this.dashboard = n.dashboard;
         this.index = n.index;
-        this.topic = n.topic;
         var node = this;
+
         node.dashboardConfig = RED.nodes.getNode(this.dashboard);
         if (node.dashboardConfig) {
+
+            node.topic = node.dashboard.inputVariables[node.index].name;
+
             node.dashboardConfig.subscribe(this.index, function(value) {
-                    var msg = {topic:this.topic, payload:value};
+                    var msg = {topic:node.topic, payload:value};
                     node.send(msg);
                 }, this.id);
 
