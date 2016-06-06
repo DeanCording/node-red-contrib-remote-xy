@@ -5,7 +5,7 @@
         color: '#a6bbcf',
         defaults: {
             name: {value:""},
-            dashboard: {value:"", type: "remote-xy-dashboard", validate:function(v) { return (RED.nodes.node(v) != null);} },
+            dashboard: {value:"", type: "remote-xy-dashboard", required: true },
             index: {value:"0", required: true, validate: RED.validators.number()},
         },
         inputs:0,
@@ -13,6 +13,24 @@
         icon: "bridge-dash.png",
         label: function() {
             return this.name||"remote-xy";
+        },
+        oneditprepare: function() {
+
+            var getInputs = function(index) {
+
+                $.getJSON("inputs/" + $("#node-input-dashboard").val(), function(data) {
+                    $("#node-input-index").empty();
+                    $.each(data, function(i, variable) {
+                        $("#node-input-index").append('<option value="' + i + '"' 
+                                + (index == i?' selected':'') + '>' + variable + '</option>');
+                    });
+
+                });
+
+            }
+
+            $("#node-input-dashboard").change({index: this.index}, function(event) {getInputs(event.data.index);});
+
         }
     });
 
@@ -21,7 +39,7 @@
         color: '#a6bbcf',
         defaults: {
             name: {value:""},
-            dashboard: {value:"", type: "remote-xy-dashboard", validate:function(v) { return (RED.nodes.node(v) != null);} },
+            dashboard: {value:"", type: "remote-xy-dashboard", required: true },
             index: {value:"0", required: true, validate: RED.validators.number()},
         },
         inputs:1,
@@ -29,7 +47,27 @@
         icon: "bridge-dash.png",
         label: function() {
             return this.name||"remote-xy";
+        },
+        oneditprepare: function() {
+
+            var getOutputs = function() {
+
+                $.getJSON("outputs/" + $("#node-input-dashboard").val(), function(data) {
+                    $("#node-input-index").empty();
+                    $.each(data, function(i, variable) {
+                        $("#node-input-index").append('<option value="' + i + '"' 
+                                + (index == i?' selected':'') + '>' + variable + '</option>');
+                    });
+
+                });
+
+            }
+
+            $("#node-input-dashboard").change({index: this.index}, function(event) {getOutputs(event.data.index);});
+            
+
         }
+
     });
 
     RED.nodes.registerType('remote-xy-dashboard',{
@@ -44,44 +82,8 @@
         label: function() {
             return this.name||("Remote XY " + this.port);
         }
-        oneditprepare: function() {
-            var that = this;
-            this.editor = RED.editor.createEditor({
-                id: 'node-config-input-config-editor',
-                mode: 'ace/mode/c_cpp',
-                value: $("#node-config-input-config").val()
-            });
-            this.editor.focus();
-        },
-        oneditsave: function() {
-            $("#node-config-input-config").val(this.editor.getValue());
-            delete this.editor;
-        },
-        oneditresize: function(size) {
-            var rows = $("#dialog-form>div:not(.node-text-editor-row)");
-            var height = $("#dialog-form").height();
-            for (var i=0;i<rows.size();i++) {
-                height -= $(rows[i]).outerHeight(true);
-            }
-            var editorRow = $("#dialog-form>div.node-text-editor-row");
-            height -= (parseInt(editorRow.css("marginTop"))+parseInt(editorRow.css("marginBottom")));
-            $(".node-text-editor").css("height",height+"px");
-            this.editor.resize();
-        }
     });
 
-    function updateInputs(nodeId, selectId) {
-        var selectElement = document.getElementById(selectId);
-
-        while (selectElement.firstChild) { selectElement.removeChild(selectElement.firstChild); }
-
-        var optionElement = document.createElement("option");
-        optionElement.value = "0";
-        optionElement.text = "slider_1";
-
-        selectElement.add(optionElement);
-
-    };
 
 </script>
 
@@ -92,7 +94,7 @@
     </div>
     <div class="form-row" id="remote-xy-dashboard-row">
         <label for="node-input-dashboard"><i class="fa fa-bookmark"></i> Dashboard</label>
-        <input type="text" id="node-input-dashboard" onchange="updateOutputs(this.value, "node-input-index")">
+        <input type="text" id="node-input-dashboard" onchange="updateInputs(this.value)">
     </div>
     <div class="form-row">
         <label for="node-input-index"><i class="fa fa-tag"></i> Variable</label>
@@ -112,7 +114,7 @@
     </div>
     <div class="form-row" id="remote-xy-dashboard-row">
         <label for="node-input-dashboard"><i class="fa fa-bookmark"></i> Dashboard</label>
-        <input type="text" id="node-input-dashboard" onchange="updateSelect(this.value)">
+        <input type="text" id="node-input-dashboard" onchange="updateInputs(this.value)">
     </div>
     <div class="form-row">
         <label for="node-input-index"><i class="fa fa-tag"></i> Index</label>
@@ -135,12 +137,9 @@
         <label for="node-input-port"><i class="fa fa-plug"></i> Port</label>
         <input type="text" id="node-config-input-port" placeholder="Port">
     </div>
-    <div class="form-row" style="margin-bottom: 0px;">
-        <label for="node-config-input-config" style="width: 100% !important;"><i class="fa fa-code"></i> project.ino</label>
-        <input type="hidden" id="node-config-input-config" autofocus="autofocus">
-    </div>
-    <div class="form-row node-text-editor-row">
-        <div style="height: 250px;" class="node-text-editor" id="node-config-input-config-editor"></div>
+    <div class="form-row">
+        <label for="node-input-config"><i class="fa fa-code"></i> project.ino</label>
+        <textarea id="node-config-input-config" rows="10" style="width: 70%;">
     </div>
     <div class="form-tips">
         Copy all <code>project.ino</code> code from Remote XY editor.
