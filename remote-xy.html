@@ -21,7 +21,7 @@
                 $.getJSON("inputs/" + $("#node-input-dashboard").val(), function(data) {
                     $("#node-input-index").empty();
                     $.each(data, function(i, variable) {
-                        $("#node-input-index").append('<option value="' + i + '"' 
+                        $("#node-input-index").append('<option value="' + i + '"'
                                 + (index == i?' selected':'') + '>' + variable + '</option>');
                     });
 
@@ -55,7 +55,7 @@
                 $.getJSON("outputs/" + $("#node-input-dashboard").val(), function(data) {
                     $("#node-input-index").empty();
                     $.each(data, function(i, variable) {
-                        $("#node-input-index").append('<option value="' + i + '"' 
+                        $("#node-input-index").append('<option value="' + i + '"'
                                 + (index == i?' selected':'') + '>' + variable + '</option>');
                     });
 
@@ -64,7 +64,7 @@
             }
 
             $("#node-input-dashboard").change({index: this.index}, function(event) {getOutputs(event.data.index);});
-            
+
 
         }
 
@@ -81,6 +81,9 @@
         outputs:0,
         label: function() {
             return this.name||("Remote XY " + this.port);
+        },
+        oneditsave: function() {
+            $.post("parse/" + this.id, $toJSON(this));
         }
     });
 

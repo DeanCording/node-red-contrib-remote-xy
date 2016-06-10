@@ -412,4 +412,8 @@ module.exports = function(RED) {
         }
     });
 
+    RED.httpAdmin.put("/parse/:id", RED.auth.needsPermission('remotexy.write'), function(request, result) {
+        console.log("Request: " + request);
+    });
+
 }
