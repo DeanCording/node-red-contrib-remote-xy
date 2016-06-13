@@ -83,7 +83,18 @@
             return this.name||("Remote XY " + this.port);
         },
         oneditsave: function() {
-            $.post("parse/" + this.id, $toJSON(this));
+            $.ajax({url: "parse/" + this.id,
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({id: this.id,
+                                          type: this.type,
+                                          z: this.z,
+                                          name: this.name,
+                                          port: '0',
+                                          config: this.config}), 
+                    processData: false, 
+                    async: false, 
+                    contentType: "application/json" });
         }
     });
 

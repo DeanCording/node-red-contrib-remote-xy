@@ -21,6 +21,7 @@
 "use strict";
 
 require('buffer');
+const util = require('util');
 
 module.exports = function(RED) {
 
@@ -62,6 +63,7 @@ module.exports = function(RED) {
     }
 
     function RemoteXYDashboardNode(n) {
+console.log("Constructor: " + util.inspect(this, {colors: true}));
         // Create a RED node
         RED.nodes.createNode(this,n);
         var node = this;
@@ -153,158 +155,159 @@ module.exports = function(RED) {
 
 
         // Create TCP Server
+        if (node.port > 0) {
+            var server = net.createServer(function(socket) {
+                socket.setKeepAlive(true,120000);
+                if (socketTimeout !== null) { socket.setTimeout(socketTimeout); }
+                var id = (1+Math.random()*4294967295).toString(16);
+                connectionPool[id] = socket;
+                count++;
+                node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
+                node.log("Client connected");
 
-        var server = net.createServer(function(socket) {
-            socket.setKeepAlive(true,120000);
-            if (socketTimeout !== null) { socket.setTimeout(socketTimeout); }
-            var id = (1+Math.random()*4294967295).toString(16);
-            connectionPool[id] = socket;
-            count++;
-            node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
-            node.log("Client connected");
+                var command = [];
 
-            var command = [];
+                socket.on('data', function(data) {
+                    //Process incoming packet
+                     for (var byte = 0; byte < data.length; byte++) {
+                        command.push(data.readUInt8(byte));
+                    }
 
-            socket.on('data', function(data) {
-                //Process incoming packet
-                 for (var byte = 0; byte < data.length; byte++) {
-                    command.push(data.readUInt8(byte));
-                }
+                    // Commands start with marker and end with a valid CRC
+                    if (command.length > node.inputVariablesBuffer.length + 6) {
+                        command.shift();  // Buffer overflow - remove invalid start marker
+                    }
 
-                // Commands start with marker and end with a valid CRC
-                if (command.length > node.inputVariablesBuffer.length + 6) {
-                    command.shift();  // Buffer overflow - remove invalid start marker
-                }
+                    // Search for start marker
+                    while ((command.length > 0) && (command[0] != REMOTEXY_PACKAGE_START_BYTE)) {
+                        command.shift();
+                    }
+	    	    if (command.length < 6) {
+                        return;
+                    }
 
-                // Search for start marker
-                while ((command.length > 0) && (command[0] != REMOTEXY_PACKAGE_START_BYTE)) {
+                    // Get command length
+                    var cmdLength = command[1] + (command[2] << 8);
+                    if (command.length < cmdLength) {
+                        return;  // Not enough data
+                    }
+
+                    // Check CRC if have a valid package
+                    if (calculateCRC(command.slice(0,cmdLength)) != (command[cmdLength-2] + (command[cmdLength-1]<<8))) {
+                        node.log("CRC failed");
+                        command.shift();
+                        return;  // Not valid
+                    }
+
+                    // Process command
+
+                    command.shift();  // Drop package start byte
+                    command.shift();  // Drop package length bytes
                     command.shift();
-                }
-		if (command.length < 6) {
-                    return;
-                }
+                    var cmd = command.shift();
 
-                // Get command length
-                var cmdLength = command[1] + (command[2] << 8);
-                if (command.length < cmdLength) {
-                    return;  // Not enough data
-                }
+                    switch(cmd) {
+                        case REMOTEXY_CMD_SEND_CONFIG:
+                            this.write(node.configBuffer);
 
-                // Check CRC if have a valid package
-                if (calculateCRC(command.slice(0,cmdLength)) != (command[cmdLength-2] + (command[cmdLength-1]<<8))) {
-                    node.log("CRC failed");
-                    command.shift();
-                    return;  // Not valid
-                }
+                            break;
 
-                // Process command
+                        case REMOTEXY_CMD_SEND_ALL_VARIABLES:
 
-                command.shift();  // Drop package start byte
-                command.shift();  // Drop package length bytes
-                command.shift();
-                var cmd = command.shift();
-
-                switch(cmd) {
-                    case REMOTEXY_CMD_SEND_CONFIG:
-                        this.write(node.configBuffer);
-
-                        break;
-
-                    case REMOTEXY_CMD_SEND_ALL_VARIABLES:
-
-                        var response = Buffer.concat([new Buffer([REMOTEXY_PACKAGE_START_BYTE, 0, 0, REMOTEXY_CMD_SEND_ALL_VARIABLES]),
+                            var response = Buffer.concat([new Buffer([REMOTEXY_PACKAGE_START_BYTE, 0, 0, REMOTEXY_CMD_SEND_ALL_VARIABLES]),
                                                      node.inputVariablesBuffer, node.outputVariablesBuffer,
                                                      new Buffer(2)]);
 
-                        response.writeUInt16LE(response.length, 1);
-                        response.writeUInt16LE(calculateCRC(response), response.length - 2);
+                            response.writeUInt16LE(response.length, 1);
+                            response.writeUInt16LE(calculateCRC(response), response.length - 2);
 
-			this.write(response);
+                            this.write(response);
 
-                        break;
+                            break;
 
-                    case REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES:
+                        case REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES:
 
-                        for (var x = 0; x < node.inputVariablesBuffer.length; x++) {
-                            var inputValue = command.shift();
-                            if (node.inputVariablesBuffer.readUInt8(x) != inputValue){
-                                node.inputVariablesBuffer.writeUInt8(inputValue,x);
+                            for (var x = 0; x < node.inputVariablesBuffer.length; x++) {
+                                var inputValue = command.shift();
+                                if (node.inputVariablesBuffer.readUInt8(x) != inputValue){
+                                    node.inputVariablesBuffer.writeUInt8(inputValue,x);
 
-                                // Convert to signed value - a hack as values are 0-100 or -100-100
-                                inputValue = (inputValue < 128) ? inputValue : inputValue - 256;
-                                // Call listener callbacks
-                                for (var ref in node.inputVariableListeners[x]) {
-                                    node.inputVariableListeners[x][ref](inputValue);
+                                    // Convert to signed value - a hack as values are 0-100 or -100-100
+                                    inputValue = (inputValue < 128) ? inputValue : inputValue - 256;
+                                    // Call listener callbacks
+                                    for (var ref in node.inputVariableListeners[x]) {
+                                        node.inputVariableListeners[x][ref](inputValue);
+                                    }
                                 }
                             }
-                        }
 
-                        this.write(REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE);
+                            this.write(REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE);
 
-                        break;
+                            break;
 
-                    case REMOTEXY_CMD_SEND_OUTPUT_VARIABLES:
+                        case REMOTEXY_CMD_SEND_OUTPUT_VARIABLES:
 
-                        var response = Buffer.concat([new Buffer([REMOTEXY_PACKAGE_START_BYTE, 0, 0, REMOTEXY_CMD_SEND_OUTPUT_VARIABLES]),
-                                                     node.outputVariablesBuffer,
-                                                     new Buffer(2)]);
+                            var response = Buffer.concat([new Buffer([REMOTEXY_PACKAGE_START_BYTE, 0, 0, REMOTEXY_CMD_SEND_OUTPUT_VARIABLES]),
+                                                         node.outputVariablesBuffer,
+                                                         new Buffer(2)]);
 
-                        response.writeUInt16LE(response.length, 1);
-                        response.writeUInt16LE(calculateCRC(response), response.length - 2);
+                            response.writeUInt16LE(response.length, 1);
+                            response.writeUInt16LE(calculateCRC(response), response.length - 2);
+  
+                            this.write(response);
 
-			this.write(response);
+                            break;
 
-                        break;
-
-                    default:
-                        node.error("Unknown command " + command);
-                        return;
-                }
-
-                // Strip CRC bytes
-                command.shift();
-                command.shift();
-
-
-            });
-            socket.on('timeout', function() {
-                node.log(RED._("node-red:tcpin.errors.timeout",{port:node.port}));
-                socket.end();
-            });
-            socket.on('close', function() {
-                delete connectionPool[id];
-                count--;
-                node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
-                node.log("Client disconnected");
-            });
-            socket.on('error',function(err) {
-                node.log(err);
-            });
-        });
-        server.on('error', function(err) {
-            if (err) {
-                node.error(RED._("node-red:tcpin.errors.cannot-listen",{port:node.port,error:err.toString()}));
-            }
-        });
-
-        server.listen(node.port, function(err) {
-            if (err) {
-                node.error(RED._("node-red:tcpin.errors.cannot-listen",{port:node.port,error:err.toString()}));
-            } else {
-                node.log(RED._("node-red:tcpin.status.listening-port",{port:node.port}));
-                node.on('close', function() {
-                    for (var c in connectionPool) {
-                        if (connectionPool.hasOwnProperty(c)) {
-                            connectionPool[c].end();
-                            connectionPool[c].unref();
-                        }
+                        default:
+                            node.error("Unknown command " + command);
+                            return;
                     }
-                    node.closing = true;
-                    server.close();
-                    node.log(RED._("node-red:tcpin.status.stopped-listening",{port:node.port}));
+
+                    // Strip CRC bytes
+                    command.shift();
+                    command.shift();
+
+
                 });
-            }
-        });
+                socket.on('timeout', function() {
+                    node.log(RED._("node-red:tcpin.errors.timeout",{port:node.port}));
+                    socket.end();
+                });
+                socket.on('close', function() {
+                    delete connectionPool[id];
+                    count--;
+                    node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
+                    node.log("Client disconnected");
+                });
+                socket.on('error',function(err) {
+                    node.log(err);
+                });
+            });
+            server.on('error', function(err) {
+                if (err) {
+                    node.error(RED._("node-red:tcpin.errors.cannot-listen",{port:node.port,error:err.toString()}));
+                }
+            });
+
+            server.listen(node.port, function(err) {
+                if (err) {
+                    node.error(RED._("node-red:tcpin.errors.cannot-listen",{port:node.port,error:err.toString()}));
+                } else {
+                    node.log(RED._("node-red:tcpin.status.listening-port",{port:node.port}));
+                    node.on('close', function() {
+                        for (var c in connectionPool) {
+                            if (connectionPool.hasOwnProperty(c)) {
+                                connectionPool[c].end();
+                                connectionPool[c].unref();
+                            }
+                        }
+                        node.closing = true;
+                        server.close();
+                        node.log(RED._("node-red:tcpin.status.stopped-listening",{port:node.port}));
+                    });
+                }
+            });
+        }
 
         // Node functions
 
@@ -336,8 +339,6 @@ module.exports = function(RED) {
                 }
             }
         };
-
-
     }
 
     RED.nodes.registerType("remote-xy-dashboard", RemoteXYDashboardNode);
@@ -395,7 +396,11 @@ module.exports = function(RED) {
     RED.nodes.registerType("remote-xy out",RemoteXYOutNode);
 
     RED.httpAdmin.get("/inputs/:id", RED.auth.needsPermission('remotexy.read'), function(request, result) {
-        var dashboard = RED.nodes.getNode(request.params.id);
+        var dashboard = RED.nodes.getNode(request.params.id) + "*";
+        if (dashboard == null) {
+            dashboard = RED.nodes.getNode(request.params.id);
+        }
+
         if (dashboard != null) {
             result.json(dashboard.inputVariableNames);
         } else {
@@ -404,7 +409,11 @@ module.exports = function(RED) {
     });
 
     RED.httpAdmin.get("/outputs/:id", RED.auth.needsPermission('remotexy.read'), function(request, result) {
-        var dashboard = RED.nodes.getNode(request.params.id);
+        var dashboard = RED.nodes.getNode(request.params.id) + "*";
+        if (dashboard == null) {
+            dashboard = RED.nodes.getNode(request.params.id);
+        }
+
         if (dashboard != null) {
             result.json(dashboard.outputVariableNames);
         } else {
@@ -412,8 +421,14 @@ module.exports = function(RED) {
         }
     });
 
-    RED.httpAdmin.put("/parse/:id", RED.auth.needsPermission('remotexy.write'), function(request, result) {
-        console.log("Request: " + request);
+    RED.httpAdmin.post("/parse/:id", RED.auth.needsPermission('remotexy.write'), function(request, result) {
+        console.log("Request: " + util.inspect(request.body, {colors: true}));
+        if (RED.nodes.getNode(request.params.id) != null) {
+            // Mark as temporary instance of existing node
+            request.body.id = request.body.id + '*';
+        }
+        RemoteXYDashboardNode(request.body);
+        result.sendStatus(200);
     });
 
 }
