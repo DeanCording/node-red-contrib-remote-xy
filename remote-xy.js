@@ -438,7 +438,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
                 var input = inputConfig[x].match(/(?:unsigned|signed) char (\w+);/);
 
                 if (input != null) {
-                    inputVariableNames[request.body.id].push(input[1]);
+                    inputVariableNames[request.body.id + "*"].push(input[1]);
                 }
             }
         }
@@ -452,7 +452,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
                 var output = outputConfig[x].match(/(?:unsigned|signed)? char (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
 
                 if (output != null) {
-                    outputVariableNames[request.body.id].push(output[1]);
+                    outputVariableNames[request.body.id + "*"].push(output[1]);
                 }
             }
         }
