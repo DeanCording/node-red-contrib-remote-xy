@@ -45,6 +45,9 @@ module.exports = function(RED) {
 
     var connectionPool = {};
 
+    var inputVariableNames = {};
+    var outputVariableNames = {};
+
     function calculateCRC(buffer) {
 
         var crc = 0xFFFF;
@@ -61,6 +64,7 @@ module.exports = function(RED) {
         return crc;
 
     }
+
 
     function RemoteXYDashboardNode(n) {
 console.log("Constructor: " + util.inspect(this, {colors: true}));
@@ -118,7 +122,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
 
         // Extract input variables
         node.inputVariableListeners = [];
-        node.inputVariableNames = [];
+        inputVariableNames[node.id] = [];
         node.inputVariablesBuffer = Buffer(parseInt(configArray[0]));
         node.inputVariablesBuffer.fill(0);
 
@@ -130,14 +134,14 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
 
                 if (input != null) {
                     node.inputVariableListeners.push({});
-                    node.inputVariableNames.push(input[1]);
+                    inputVariableNames[node.id].push(input[1]);
                 }
             }
         }
 
         // Extract output variables
         node.outputVariables = [];
-        node.outputVariableNames = [];
+        outputVariableNames[node.id] = [];
         node.outputVariablesBuffer = Buffer(parseInt(configArray[1]));
         node.outputVariablesBuffer.fill(0);
         if (outputStart > 0) {
@@ -148,7 +152,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
 
                 if (output != null) {
                     node.outputVariables.push({min:output[3]*1, max:output[4]*1, length:output[2]*1, value:0});
-                    node.outputVariableNames.push(output[1]);
+                    outputVariableNames[node.id].push(output[1]);
                 }
             }
         }
@@ -253,7 +257,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
 
                             response.writeUInt16LE(response.length, 1);
                             response.writeUInt16LE(calculateCRC(response), response.length - 2);
-  
+
                             this.write(response);
 
                             break;
@@ -396,26 +400,22 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
     RED.nodes.registerType("remote-xy out",RemoteXYOutNode);
 
     RED.httpAdmin.get("/inputs/:id", RED.auth.needsPermission('remotexy.read'), function(request, result) {
-        var dashboard = RED.nodes.getNode(request.params.id) + "*";
-        if (dashboard == null) {
-            dashboard = RED.nodes.getNode(request.params.id);
-        }
 
-        if (dashboard != null) {
-            result.json(dashboard.inputVariableNames);
+        if (inputVariableNames[request.params.id + "*"] != undefined) {
+            result.json(inputVariableNames[request.params.id + "*"]);
+        } else if (inputVariableNames[request.params.id] != undefined) {
+            result.json(inputVariableNames[request.params.id]);
         } else {
             result.json([]);
         }
     });
 
     RED.httpAdmin.get("/outputs/:id", RED.auth.needsPermission('remotexy.read'), function(request, result) {
-        var dashboard = RED.nodes.getNode(request.params.id) + "*";
-        if (dashboard == null) {
-            dashboard = RED.nodes.getNode(request.params.id);
-        }
 
-        if (dashboard != null) {
-            result.json(dashboard.outputVariableNames);
+        if (outputVariableNames[request.params.id + "*"] != undefined) {
+            result.json(outputVariableNames[request.params.id + "*"]);
+        } else if (outputVariableNames[request.params.id] != undefined) {
+            result.json(outputVariableNames[request.params.id]);
         } else {
             result.json([]);
         }
@@ -423,11 +423,40 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
 
     RED.httpAdmin.post("/parse/:id", RED.auth.needsPermission('remotexy.write'), function(request, result) {
         console.log("Request: " + util.inspect(request.body, {colors: true}));
-        if (RED.nodes.getNode(request.params.id) != null) {
-            // Mark as temporary instance of existing node
-            request.body.id = request.body.id + '*';
+
+        var inputStart = request.body.config.indexOf(REMOTEXY_INPUTS_MARKER);
+        var outputStart = request.body.config.indexOf(REMOTEXY_OUTPUTS_MARKER);
+        var variablesEnd = request.body.config.indexOf(REMOTEXY_VARIABLES_END_MARKER);
+
+        // Extract input variables
+        inputVariableNames[request.body.id + "*"] = [];
+
+	if (inputStart > 0) {
+            var inputConfig = request.body.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length, outputStart).split("\n");
+
+            for (var x = 0; x < inputConfig.length; x++) {
+                var input = inputConfig[x].match(/(?:unsigned|signed) char (\w+);/);
+
+                if (input != null) {
+                    inputVariableNames[request.body.id].push(input[1]);
+                }
+            }
         }
-        RemoteXYDashboardNode(request.body);
+
+        // Extract output variables
+        outputVariableNames[request.body.id + "*"] = [];
+        if (outputStart > 0) {
+            var outputConfig = request.body.config.slice(outputStart + REMOTEXY_OUTPUTS_MARKER.length, variablesEnd).split("\n");
+
+            for (var x = 0; x < outputConfig.length; x++) {
+                var output = outputConfig[x].match(/(?:unsigned|signed)? char (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
+
+                if (output != null) {
+                    outputVariableNames[request.body.id].push(output[1]);
+                }
+            }
+        }
+
         result.sendStatus(200);
     });
 

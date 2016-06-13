@@ -87,13 +87,9 @@
                     type: "POST",
                     contentType: "application/json",
                     data: JSON.stringify({id: this.id,
-                                          type: this.type,
-                                          z: this.z,
-                                          name: this.name,
-                                          port: '0',
-                                          config: this.config}), 
-                    processData: false, 
-                    async: false, 
+                                          config: this.config}),
+                    processData: false,
+                    async: false,
                     contentType: "application/json" });
         }
     });
