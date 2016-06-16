@@ -24,12 +24,17 @@ require('buffer');
 const util = require('util');
 
 module.exports = function(RED) {
+    const REMOTEXY_INPUT_LENGTH_INDEX = 0;
+    const REMOTEXY_OUTPUT_LENGTH_INDEX = 1; 
+    const REMOTEXY_CONF_LENGTH_INDEX = 2; 
+    const REMOTEXY_CONF_INDEX = 4; 
 
-    const REMOTEXY_PACKAGE_START_BYTE = 85;
+
+    const REMOTEXY_PACKAGE_START_BYTE = 85;   // 0x55
     const REMOTEXY_CMD_SEND_CONFIG = 0;
-    const REMOTEXY_CMD_SEND_ALL_VARIABLES = 64;
-    const REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES = 128;
-    const REMOTEXY_CMD_SEND_OUTPUT_VARIABLES = 192;
+    const REMOTEXY_CMD_SEND_ALL_VARIABLES = 64;  // 0x40
+    const REMOTEXY_CMD_RECEIVE_INPUT_VARIABLES = 128;  // 0x80
+    const REMOTEXY_CMD_SEND_OUTPUT_VARIABLES = 192;  // 0xC0
 
     const REMOTEXY_CONFIG_START_MARKER = 'RemoteXY_CONF[]';
     const REMOTEXY_CONFIG_END_MARKER = '};';
@@ -51,7 +56,6 @@ module.exports = function(RED) {
     function calculateCRC(buffer) {
 
         var crc = 0xFFFF;
-
         for (var x=0; x < buffer.length-2; x++) {
             crc ^= buffer[x];
 
@@ -67,7 +71,6 @@ module.exports = function(RED) {
 
 
     function RemoteXYDashboardNode(n) {
-console.log("Constructor: " + util.inspect(this, {colors: true}));
         // Create a RED node
         RED.nodes.createNode(this,n);
         var node = this;
@@ -93,14 +96,12 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
         var configArray = n.config.slice(configStart + REMOTEXY_CONFIG_START_MARKER.length, configEnd).replace(/(\{| |\}|\=|\;|\s)/gm, "").split(",");  // Slice out configuration, strip formatting and split into values.
 
         // Pre-build config response message
-        node.configBuffer = Buffer(configArray.length - 4 + 5);
-
+        node.configBuffer = Buffer((configArray[REMOTEXY_CONF_LENGTH_INDEX] * 1) + 6);
         node.configBuffer.writeInt8(REMOTEXY_PACKAGE_START_BYTE,0);
         node.configBuffer.writeInt16LE(node.configBuffer.length,1);
         node.configBuffer.writeInt8(REMOTEXY_CMD_SEND_CONFIG,3);
-
         for (var x=4; x < configArray.length; x++) {
-            node.configBuffer.writeInt8(configArray[x], x);
+            node.configBuffer.writeUInt8(configArray[x], x);
         }
 
         node.configBuffer.writeUInt16LE(calculateCRC(node.configBuffer), node.configBuffer.length - 2);
@@ -115,7 +116,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
         var outputStart = n.config.indexOf(REMOTEXY_OUTPUTS_MARKER);
         var variablesEnd = n.config.indexOf(REMOTEXY_VARIABLES_END_MARKER);
 
-        if ((inputStart == -1) && (outputStart == -1) && (variablesEnd == -1)) {
+        if (variablesEnd == -1) {
             node.error("Invalid config: Variables not found.");
             return;
         }
@@ -123,11 +124,12 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
         // Extract input variables
         node.inputVariableListeners = [];
         inputVariableNames[node.id] = [];
-        node.inputVariablesBuffer = Buffer(parseInt(configArray[0]));
+        node.inputVariablesBuffer = Buffer(parseInt(configArray[REMOTEXY_INPUT_LENGTH_INDEX]));
         node.inputVariablesBuffer.fill(0);
 
 	if (inputStart > 0) {
-            var inputConfig = n.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length, outputStart).split("\n");
+            var inputConfig = n.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length, 
+                               ((outputStart > 0)?outputStart:variablesEnd)).split("\n");
 
             for (var x = 0; x < inputConfig.length; x++) {
                 var input = inputConfig[x].match(/(?:unsigned|signed) char (\w+);/);
@@ -142,7 +144,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
         // Extract output variables
         node.outputVariables = [];
         outputVariableNames[node.id] = [];
-        node.outputVariablesBuffer = Buffer(parseInt(configArray[1]));
+        node.outputVariablesBuffer = Buffer(parseInt(configArray[REMOTEXY_OUTPUT_LENGTH_INDEX]));
         node.outputVariablesBuffer.fill(0);
         if (outputStart > 0) {
             var outputConfig = n.config.slice(outputStart + REMOTEXY_OUTPUTS_MARKER.length, variablesEnd).split("\n");
@@ -316,16 +318,15 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
         // Node functions
 
         node.update = function(index, value) {
-
-            if ((typeof value === "number") && (node.outputVariables[index].length === undefined)) {
-                node.outputVariablesBuffer.writeInt8(value,index);
-
-            } else if (node.outputVariables[index].length != undefined) {
-                var valueString = value.toString();
-                node.outputVariablesBuffer.write(valueString, Math.min(valueString.length,node.outputVariables[index].length));
-
-            } else {
-                node.error("Could not store '" + value + "' to " + node.outputVariableNames[index]);
+            try {
+                if (node.outputVariables[index].length > 0) {
+                    var valueString = value.toString();
+                    node.outputVariablesBuffer.write(valueString, index, Math.min(valueString.length,node.outputVariables[index].length));
+                } else {
+                    node.outputVariablesBuffer.writeInt8(parseInt(value),index);
+                }
+            } catch (e) {
+                node.error("Could not store '" + value + "' to " + outputVariableNames[node.id][index]);
             }
         };
 
@@ -343,6 +344,15 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
                 }
             }
         };
+
+        node.on('close', function() {
+            delete inputVariableNames[node.id];
+            delete inputVariableNames[node.id + "*"];
+            delete outputVariableNames[node.id];
+            delete outputVariableNames[node.id + "*"];
+        });
+
+
     }
 
     RED.nodes.registerType("remote-xy-dashboard", RemoteXYDashboardNode);
@@ -357,7 +367,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
 
         node.dashboardConfig = RED.nodes.getNode(this.dashboard);
         if (node.dashboardConfig) {
-            node.topic = node.dashboardConfig.inputVariableNames[node.index];
+            node.topic = inputVariableNames[node.dashboardConfig.id][node.index];
 
             node.dashboardConfig.subscribe(this.index, function(value) {
                     var msg = {topic:node.topic, payload:value};
@@ -372,7 +382,7 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
         }
 
         this.on('close', function() {
-            node.dashboardConfig.unsubscribe(this.index, this.ref);
+            node.dashboardConfig.unsubscribe(node.index, node.id);
         });
 
     }
@@ -422,7 +432,6 @@ console.log("Constructor: " + util.inspect(this, {colors: true}));
     });
 
     RED.httpAdmin.post("/parse/:id", RED.auth.needsPermission('remotexy.write'), function(request, result) {
-        console.log("Request: " + util.inspect(request.body, {colors: true}));
 
         var inputStart = request.body.config.indexOf(REMOTEXY_INPUTS_MARKER);
         var outputStart = request.body.config.indexOf(REMOTEXY_OUTPUTS_MARKER);

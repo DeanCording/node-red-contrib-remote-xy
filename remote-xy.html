@@ -4,7 +4,7 @@
         category: 'advanced',
         color: '#a6bbcf',
         defaults: {
-            name: {value:""},
+            name: {value:"" },
             dashboard: {value:"", type: "remote-xy-dashboard", required: true },
             index: {value:"0", required: true, validate: RED.validators.number()},
         },
@@ -16,6 +16,7 @@
         },
         oneditprepare: function() {
 
+
             var getInputs = function(index) {
 
                 $.getJSON("inputs/" + $("#node-input-dashboard").val(), function(data) {
@@ -24,12 +25,14 @@
                         $("#node-input-index").append('<option value="' + i + '"'
                                 + (index == i?' selected':'') + '>' + variable + '</option>');
                     });
-
+                    $("#node-input-index").change();
                 });
 
             }
 
             $("#node-input-dashboard").change({index: this.index}, function(event) {getInputs(event.data.index);});
+
+            $("#node-input-index").change({node: this}, function(event) { event.data.node.name = $("#node-input-index option:selected").text()||"remote-xy";});
 
         }
     });
@@ -50,7 +53,7 @@
         },
         oneditprepare: function() {
 
-            var getOutputs = function() {
+            var getOutputs = function(index) {
 
                 $.getJSON("outputs/" + $("#node-input-dashboard").val(), function(data) {
                     $("#node-input-index").empty();
@@ -58,13 +61,14 @@
                         $("#node-input-index").append('<option value="' + i + '"'
                                 + (index == i?' selected':'') + '>' + variable + '</option>');
                     });
-
+                    $("#node-input-index").change();
                 });
 
             }
 
             $("#node-input-dashboard").change({index: this.index}, function(event) {getOutputs(event.data.index);});
 
+            $("#node-input-index").change({node: this}, function(event) { event.data.node.name = $("#node-input-index option:selected").text()||"remote-xy";});
 
         }
 
@@ -98,13 +102,9 @@
 </script>
 
 <script type="text/x-red" data-template-name="remote-xy in">
-    <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
     <div class="form-row" id="remote-xy-dashboard-row">
         <label for="node-input-dashboard"><i class="fa fa-bookmark"></i> Dashboard</label>
-        <input type="text" id="node-input-dashboard" onchange="updateInputs(this.value)">
+        <input type="text" id="node-input-dashboard">
     </div>
     <div class="form-row">
         <label for="node-input-index"><i class="fa fa-tag"></i> Variable</label>
@@ -118,17 +118,13 @@
 </script>
 
 <script type="text/x-red" data-template-name="remote-xy out">
-    <div class="form-row">
-        <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
-        <input type="text" id="node-input-name" placeholder="Name">
-    </div>
     <div class="form-row" id="remote-xy-dashboard-row">
         <label for="node-input-dashboard"><i class="fa fa-bookmark"></i> Dashboard</label>
-        <input type="text" id="node-input-dashboard" onchange="updateInputs(this.value)">
+        <input type="text" id="node-input-dashboard">
     </div>
     <div class="form-row">
         <label for="node-input-index"><i class="fa fa-tag"></i> Index</label>
-        <input type="text" id="node-input-index" placeholder="Index">
+        <select id="node-input-index" placeholder="Variable">
     </div>
 
 
