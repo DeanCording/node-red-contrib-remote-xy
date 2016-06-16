@@ -115,6 +115,19 @@
 </script>
 
 <script type="text/x-red" data-help-name="remote-xy in">
+   <p>Receives value from a RemoteXY dashboard widget and outputs it as a msg.payload.</p>
+   <p><a href="http://remotexy.com">Remote XY</a> is a graphical dashboard
+   <a href="https://play.google.com/store/apps/details?id=com.shevauto.remotexy.pro">
+   app for Android devices</a> that provides a variety of controls and indicators including
+   sliders, joystick, buttons, gauges, indicators and text fields.  The GUI is designed using
+   the online <a href="http://remotexy.com/en/editor/">Remote XY editor</a> and the resulting
+   code copied into the Node Red RemoteXY dashboard configuration node.  When the app connects
+   to the dashboard, it will automatically download the dashboard configuration.  Multiple dashboards
+   can be run on different ports.</p>
+   <p>This input node receives avalue from the dashboard indiator widget identified by its variable
+   name in the configuartion code and outputs it as a message with the value in the payload and
+   the widget identifier as the topic.</p>
+   <p><b>Note:</b> Contol widgets typically output values between 0-100. Check the configuration code for the appropriate values.</p>
 </script>
 
 <script type="text/x-red" data-template-name="remote-xy out">
@@ -131,6 +144,18 @@
 </script>
 
 <script type="text/x-red" data-help-name="remote-xy out">
+   <p>Outputs msg.payload to a RemoteXY dashboard widget.</p>
+   <p><a href="http://remotexy.com">Remote XY</a> is a graphical dashboard
+   <a href="https://play.google.com/store/apps/details?id=com.shevauto.remotexy.pro">
+   app for Android devices</a> that provides a variety of controls and indicators including
+   sliders, joystick, buttons, gauges, indicators and text fields.  The GUI is designed using
+   the online <a href="http://remotexy.com/en/editor/">Remote XY editor</a> and the resulting
+   code copied into the Node Red RemoteXY dashboard configuration node.  When the app connects
+   to the dashboard, it will automatically download the dashboard configuration.  Multiple dashboards
+   can be run on different ports.</p>
+   <p>This output node sends the msg.payload value to the dashboard indiator widget identified by its variable
+   name in the configuartion code.</p>
+   <p><b>Note:</b> Indicator widgets typically take values between 0-100, +\/-100, or 0-255. Check the configuration code for the appropriate values.</p>
 </script>
 
 
@@ -145,10 +170,10 @@
     </div>
     <div class="form-row">
         <label for="node-input-config"><i class="fa fa-code"></i> project.ino</label>
-        <textarea id="node-config-input-config" rows="10" style="width: 70%;">
+        <textarea id="node-config-input-config" rows="10" style="width: 70%;"></textarea>
     </div>
     <div class="form-tips">
-        Copy all <code>project.ino</code> code from Remote XY editor.
+        Copy all <code>project.ino</code> code from the <a href="http://remotexy.com/en/editor/">Remote XY editor</a>.
     </div>
 </script>
 
