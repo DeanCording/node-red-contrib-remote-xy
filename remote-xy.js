@@ -25,9 +25,9 @@ const util = require('util');
 
 module.exports = function(RED) {
     const REMOTEXY_INPUT_LENGTH_INDEX = 0;
-    const REMOTEXY_OUTPUT_LENGTH_INDEX = 1; 
-    const REMOTEXY_CONF_LENGTH_INDEX = 2; 
-    const REMOTEXY_CONF_INDEX = 4; 
+    const REMOTEXY_OUTPUT_LENGTH_INDEX = 1;
+    const REMOTEXY_CONF_LENGTH_INDEX = 2;
+    const REMOTEXY_CONF_INDEX = 4;
 
 
     const REMOTEXY_PACKAGE_START_BYTE = 85;   // 0x55
@@ -128,7 +128,7 @@ module.exports = function(RED) {
         node.inputVariablesBuffer.fill(0);
 
 	if (inputStart > 0) {
-            var inputConfig = n.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length, 
+            var inputConfig = n.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length,
                                ((outputStart > 0)?outputStart:variablesEnd)).split("\n");
 
             for (var x = 0; x < inputConfig.length; x++) {
@@ -268,6 +268,11 @@ module.exports = function(RED) {
                             node.error("Unknown command " + command);
                             return;
                     }
+
+                    // RemoteXY app polls the server continuously and needs some throttling
+                    socket.pause();
+                    setTimeout(function() { socket.resume();}, 500);
+
 
                     // Strip CRC bytes
                     command.shift();
