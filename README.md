@@ -20,17 +20,17 @@ Download and install the [RemoteXY app](https://play.google.com/store/apps/detai
 
 Using the [RemoteXY editor](http://remotexy.com/en/editor/), create your dashboard. Input and output variable names can be changed to more meaningful ones to make their use in Node Red clearer.
 
-Click on the 'Get source code' button, then highlight and copy the entire 'project.ino' code.
+Click on the `Get source code` button, then highlight and copy the entire `project.ino` code.
 
-In Node Red, create either a new input or output RemoteXY node.  Double click on it to open the configuration window.  In 'Dashboard' field, select 'Add new remote-xy-dashboard' and click on the edit button.
+In Node Red, create either a new input or output RemoteXY node.  Double click on it to open the configuration window.  In `Dashboard` field, select 'Add new remote-xy-dashboard' and click on the edit button.
 
-In the remote-xy-dashboard config window, enter a name and port number for the dashboard, and then paste the 'project.ino' code into the 'project.ino' text area.  If the dashboard will be used by different flows, select 'Global'. Press 'Add' to create the config node and return to the input or output node.
+In the remote-xy-dashboard config window, enter a name and port number for the dashboard, and then paste the `project.ino` code into the `project.ino` text area.  If the dashboard will be used by different flows, select `Global` context. Press `Add` to create the config node and return to the input or output node.
 
-In the input or output node config, now select the input or output variable that will be connected to this node. Press 'OK' to create the node and then wire it to your flow.
+In the input or output node config, now select the input or output variable that will be connected to this node. Press `OK` to create the node and then wire it to your flow.
 
 You can now create additional input and output nodes by selecting the existing remote-xy-dashboard config and variable name.
 
-In the app, create a new 'Net' connection using the Node Red server name and the port number specified in the remote-xy-dashboard config node.  The app should automatically download and display the dashboard.
+In the app, create a new `Net` connection using the Node Red server name and the port number specified in the remote-xy-dashboard config node.  The app should automatically download and display the dashboard.
 
 ## Constraints
-The input and output nodes have limitations on the range of data values they can display.  Most indicators display either 0..100 or -100..100 ranges except for the LED which displays RGB using the 0..255 range.  Controls return values in the range of 0..100 or -100, except for buttons and switches.  The Arduino 'project.ino' code documents the range of values accepted or produce for each variable.
+The input and output nodes have limitations on the range of data values they can display.  Most indicators display either 0..100 or -100..100 ranges except for the LED which displays RGB using the 0..255 range.  Controls return values in the range of 0..100 or -100, except for buttons and switches.  The Arduino `project.ino` code documents the range of values accepted or produce for each variable.
