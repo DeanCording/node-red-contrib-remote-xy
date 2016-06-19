@@ -1,5 +1,7 @@
 /**
- * Copyright 2016 Dean Cording
+ * Copyright 2016 Dean Cording (dean@cording.id.au)
+ *
+ * A Node Red node for connecting to the RemoteXY dashboard Andriod app.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -201,7 +203,7 @@ module.exports = function(RED) {
                     }
 
                     // Check CRC if have a valid package
-                    if (calculateCRC(command.slice(0,cmdLength)) != 
+                    if (calculateCRC(command.slice(0,cmdLength)) !=
                       (command[cmdLength-2] + (command[cmdLength-1]<<8))) {
                         node.log("CRC failed");
                         command.shift();
@@ -332,7 +334,7 @@ module.exports = function(RED) {
             try {
                 if (node.outputVariables[index].length > 0) {
                     var valueString = value.toString();
-                    node.outputVariablesBuffer.write(valueString, node.outputVariables[index].offset, 
+                    node.outputVariablesBuffer.write(valueString, node.outputVariables[index].offset,
                          Math.min(valueString.length,node.outputVariables[index].length)-1);
                     node.outputVariablesBuffer.writeInt8(0,
                          node.outputVariables[index].offset + Math.min(valueString.length,node.outputVariables[index].length)-1);
@@ -459,7 +461,7 @@ module.exports = function(RED) {
         inputVariableNames[request.body.id + "*"] = [];
 
 	if (inputStart > 0) {
-            var inputConfig = request.body.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length, 
+            var inputConfig = request.body.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length,
                    (outputStart>0)?outputStart:variablesEnd).split("\n");
 
             for (var x = 0; x < inputConfig.length; x++) {
