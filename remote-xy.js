@@ -107,7 +107,8 @@ module.exports = function(RED) {
         node.configBuffer.writeUInt16LE(calculateCRC(node.configBuffer), node.configBuffer.length - 2);
 
         // Calc CRC for receive input variables response buffer
-        REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE.writeUInt16LE(calculateCRC(REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE),
+        REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE.writeUInt16LE(
+                                    calculateCRC(REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE),
                                     REMOTEXY_RECEIVE_INPUT_VARIABLES_RESPONSE.length - 2);
 
 
@@ -148,17 +149,18 @@ module.exports = function(RED) {
         node.outputVariablesBuffer.fill(0);
         if (outputStart > 0) {
             var outputConfig = n.config.slice(outputStart + REMOTEXY_OUTPUTS_MARKER.length, variablesEnd).split("\n");
-
+            var index = 0;
             for (var x = 0; x < outputConfig.length; x++) {
                 var output = outputConfig[x].match(/(?:unsigned|signed)? char (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
 
                 if (output != null) {
-                    node.outputVariables.push({min:output[3]*1, max:output[4]*1, length:output[2]*1, value:0});
+                    node.outputVariables.push({min:output[5]*1, max:output[6]*1, length:output[2]*1,
+                    offset:index, value:0});
                     outputVariableNames[node.id].push(output[1]);
+                    index += (output[2]!=undefined)?output[2]*1:1;
                 }
             }
         }
-
 
         // Create TCP Server
         if (node.port > 0) {
@@ -168,8 +170,8 @@ module.exports = function(RED) {
                 var id = (1+Math.random()*4294967295).toString(16);
                 connectionPool[id] = socket;
                 count++;
-                node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
-                node.log("Client connected");
+                // node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
+                node.log("Client connected " + socket.address().address);
 
                 var command = [];
 
@@ -199,7 +201,8 @@ module.exports = function(RED) {
                     }
 
                     // Check CRC if have a valid package
-                    if (calculateCRC(command.slice(0,cmdLength)) != (command[cmdLength-2] + (command[cmdLength-1]<<8))) {
+                    if (calculateCRC(command.slice(0,cmdLength)) != 
+                      (command[cmdLength-2] + (command[cmdLength-1]<<8))) {
                         node.log("CRC failed");
                         command.shift();
                         return;  // Not valid
@@ -220,8 +223,10 @@ module.exports = function(RED) {
 
                         case REMOTEXY_CMD_SEND_ALL_VARIABLES:
 
-                            var response = Buffer.concat([new Buffer([REMOTEXY_PACKAGE_START_BYTE, 0, 0, REMOTEXY_CMD_SEND_ALL_VARIABLES]),
-                                                     node.inputVariablesBuffer, node.outputVariablesBuffer,
+                            var response = Buffer.concat([new Buffer([REMOTEXY_PACKAGE_START_BYTE,
+                                                     0, 0, REMOTEXY_CMD_SEND_ALL_VARIABLES]),
+                                                     node.inputVariablesBuffer,
+                                                     node.outputVariablesBuffer,
                                                      new Buffer(2)]);
 
                             response.writeUInt16LE(response.length, 1);
@@ -253,7 +258,8 @@ module.exports = function(RED) {
 
                         case REMOTEXY_CMD_SEND_OUTPUT_VARIABLES:
 
-                            var response = Buffer.concat([new Buffer([REMOTEXY_PACKAGE_START_BYTE, 0, 0, REMOTEXY_CMD_SEND_OUTPUT_VARIABLES]),
+                            var response = Buffer.concat([new Buffer([REMOTEXY_PACKAGE_START_BYTE,
+                                                         0, 0, REMOTEXY_CMD_SEND_OUTPUT_VARIABLES]),
                                                          node.outputVariablesBuffer,
                                                          new Buffer(2)]);
 
@@ -262,16 +268,16 @@ module.exports = function(RED) {
 
                             this.write(response);
 
+                            // RemoteXY app polls the server continuously and needs some throttling
+                            socket.pause();
+                            setTimeout(function() { socket.resume();}, 100);
+
                             break;
 
                         default:
                             node.error("Unknown command " + command);
                             return;
                     }
-
-                    // RemoteXY app polls the server continuously and needs some throttling
-                    socket.pause();
-                    setTimeout(function() { socket.resume();}, 500);
 
 
                     // Strip CRC bytes
@@ -287,7 +293,7 @@ module.exports = function(RED) {
                 socket.on('close', function() {
                     delete connectionPool[id];
                     count--;
-                    node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
+                    //node.status({text:RED._("node-red:tcpin.status.connections",{count:count})});
                     node.log("Client disconnected");
                 });
                 socket.on('error',function(err) {
@@ -326,12 +332,19 @@ module.exports = function(RED) {
             try {
                 if (node.outputVariables[index].length > 0) {
                     var valueString = value.toString();
-                    node.outputVariablesBuffer.write(valueString, index, Math.min(valueString.length,node.outputVariables[index].length));
+                    node.outputVariablesBuffer.write(valueString, node.outputVariables[index].offset, 
+                         Math.min(valueString.length,node.outputVariables[index].length)-1);
+                    node.outputVariablesBuffer.writeInt8(0,
+                         node.outputVariables[index].offset + Math.min(valueString.length,node.outputVariables[index].length)-1);
                 } else {
-                    node.outputVariablesBuffer.writeInt8(parseInt(value),index);
+                    value = parseInt(value);
+                    node.outputVariablesBuffer.writeInt8(
+                                               (value >= 0)?Math.min(value,255):Math.max(value,-255),
+                                               node.outputVariables[index].offset);
                 }
             } catch (e) {
                 node.error("Could not store '" + value + "' to " + outputVariableNames[node.id][index]);
+                node.error(e);
             }
         };
 
@@ -446,7 +459,8 @@ module.exports = function(RED) {
         inputVariableNames[request.body.id + "*"] = [];
 
 	if (inputStart > 0) {
-            var inputConfig = request.body.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length, outputStart).split("\n");
+            var inputConfig = request.body.config.slice(inputStart + REMOTEXY_INPUTS_MARKER.length, 
+                   (outputStart>0)?outputStart:variablesEnd).split("\n");
 
             for (var x = 0; x < inputConfig.length; x++) {
                 var input = inputConfig[x].match(/(?:unsigned|signed) char (\w+);/);
