@@ -103,7 +103,8 @@ module.exports = function(RED) {
         var configArray = n.config.slice(configStart + REMOTEXY_CONFIG_START_MARKER.length, configEnd).replace(/(\{| |\}|\=|\;|\s)/gm, "").split(",");  // Slice out configuration, strip formatting and split into values.
 
         // Pre-build config response message
-        node.configBuffer = Buffer((configArray[REMOTEXY_CONF_LENGTH_INDEX] * 1) + 6);
+        node.configBuffer = Buffer((configArray[REMOTEXY_CONF_LENGTH_INDEX] * 1)
+                                  + (configArray[REMOTEXY_CONF_LENGTH_INDEX+1] * 256) + 6);
         node.configBuffer.writeInt8(REMOTEXY_PACKAGE_START_BYTE,0);
         node.configBuffer.writeInt16LE(node.configBuffer.length,1);
         node.configBuffer.writeInt8(REMOTEXY_CMD_SEND_CONFIG,3);
