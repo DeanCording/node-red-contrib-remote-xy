@@ -29,7 +29,6 @@
 
 require('buffer');
 const util = require('util');
-
 module.exports = function(RED) {
     const REMOTEXY_INPUT_LENGTH_INDEX = 0;
     const REMOTEXY_OUTPUT_LENGTH_INDEX = 1;
@@ -141,7 +140,7 @@ module.exports = function(RED) {
                                ((outputStart > 0)?outputStart:variablesEnd)).split("\n");
 
             for (var x = 0; x < inputConfig.length; x++) {
-                var input = inputConfig[x].match(/(?:unsigned|signed) char (\w+);/);
+                var input = inputConfig[x].match(/(?:unsigned|signed)\s*(?:char|int8_n|uint8_n) (\w+);/);
 
                 if (input != null) {
                     node.inputVariableListeners.push({});
@@ -159,7 +158,7 @@ module.exports = function(RED) {
             var outputConfig = n.config.slice(outputStart + REMOTEXY_OUTPUTS_MARKER.length, variablesEnd).split("\n");
             var index = 0;
             for (var x = 0; x < outputConfig.length; x++) {
-                var output = outputConfig[x].match(/(?:unsigned|signed)? char (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
+                var output = outputConfig[x].match(/(?:unsigned|signed)?\s*(?:char|int8_t|uint8_t) (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
 
                 if (output != null) {
                     node.outputVariables.push({min:output[5]*1, max:output[6]*1, length:output[2]*1,
@@ -471,7 +470,7 @@ module.exports = function(RED) {
                    (outputStart>0)?outputStart:variablesEnd).split("\n");
 
             for (var x = 0; x < inputConfig.length; x++) {
-                var input = inputConfig[x].match(/(?:unsigned|signed) char (\w+);/);
+                var input = inputConfig[x].match(/(?:unsigned|signed)?\s*(?:char|int8_t|uint8_t) (\w+);/);
 
                 if (input != null) {
                     inputVariableNames[request.body.id + "*"].push(input[1]);
@@ -485,7 +484,7 @@ module.exports = function(RED) {
             var outputConfig = request.body.config.slice(outputStart + REMOTEXY_OUTPUTS_MARKER.length, variablesEnd).split("\n");
 
             for (var x = 0; x < outputConfig.length; x++) {
-                var output = outputConfig[x].match(/(?:unsigned|signed)? char (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
+                var output = outputConfig[x].match(/(?:unsigned|signed)?\s*(?:char|int8_t|uint8_t) (\w+)(?:\[(\d+)\])?;\s+\/\* (string|(=(-?\d+)+\.\.(\d+)))/);
 
                 if (output != null) {
                     outputVariableNames[request.body.id + "*"].push(output[1]);
