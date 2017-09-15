@@ -140,8 +140,7 @@ module.exports = function(RED) {
                                ((outputStart > 0)?outputStart:variablesEnd)).split("\n");
 
             for (var x = 0; x < inputConfig.length; x++) {
-                var input = inputConfig[x].match(/(?:unsigned|signed)\s*(?:char|int8_n|uint8_n) (\w+);/);
-
+                var input = inputConfig[x].match(/(?:unsigned|signed)?\s*(?:char|int8_n|uint8_n|uint8_t|int8_t) (\w+);/);
                 if (input != null) {
                     node.inputVariableListeners.push({});
                     inputVariableNames[node.id].push(input[1]);
@@ -358,7 +357,6 @@ module.exports = function(RED) {
 
         node.subscribe = function(index, callback, ref) {
             node.inputVariableListeners[index][ref] = callback;
-
         };
 
         node.unsubscribe = function(index, ref) {
