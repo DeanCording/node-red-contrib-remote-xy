@@ -70,8 +70,10 @@
 
             $("#node-input-index").change({node: this}, function(event) { event.data.node.name = $("#node-input-index option:selected").text()||"remote-xy";});
 
-        }
-
+        },
+	oneditsave: function() {
+            this.name = $("#node-input-index option:selected").text()||"remote-xy";
+	}
     });
 
     RED.nodes.registerType('remote-xy-dashboard',{
@@ -155,7 +157,7 @@
    can be run on different ports.</p>
    <p>This output node sends the msg.payload value to the dashboard indicator widget identified by its variable
    name in the configuartion code.</p>
-   <p><b>Note:</b> Indicator widgets typically take values between 0-100, +\/-100, or 0-255. Check the configuration code for the appropriate values.</p>
+   <p><b>Note:</b> Indicator widgets typically take values between 0-100, +/-100, or 0-255. Check the configuration code for the appropriate values.</p>
 </script>
 
 
